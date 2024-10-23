@@ -10,19 +10,15 @@ def train(
     nb_itt,
     train_loss,
     test_loss,
-    resample_rate,
-    display,
     poids,
     model,
     loss,
     optimizer,
     X,
     U,
-    n_pde,
     X_test_pde,
     X_test_data,
     U_test_data,
-    n_data,
     rectangle,
     device,
     Re,
@@ -38,13 +34,14 @@ def train(
     v_std,
     folder_result,
     save_rate,
+    batch_size_data
 ):
     nb_it_tot = nb_itt + len(train_loss["total"])
-    # Nos datas initiales
-    points_data_train = np.random.choice(len(X), n_data, replace=False)
-    X_train_data = torch.from_numpy(X[points_data_train]).requires_grad_().to(device)
-    U_train_data = torch.from_numpy(U[points_data_train]).requires_grad_().to(device)
-    X_train_pde = rectangle.generate_random(n_pde).to(device)
+    # # Nos datas initiales
+    # points_data_train = np.random.choice(len(X), n_data, replace=False)
+    # X_train_data = torch.from_numpy(X[points_data_train]).requires_grad_().to(device)
+    # U_train_data = torch.from_numpy(U[points_data_train]).requires_grad_().to(device)
+    # X_train_pde = rectangle.generate_random(n_pde).to(device)
     print(
         f"--------------------------\nStarting at epoch: {len(train_loss['total'])}"
         + "\n--------------------------"
@@ -56,118 +53,113 @@ def train(
     )
 
     for epoch in range(len(train_loss["total"]), nb_it_tot):
-        model.train()  # on dit qu'on va entrainer (on a le dropout)
+        perm = np.random.permutation(len(X))
+        X_epoch = torch.from_numpy(X[perm]).requires_grad_().to(device)
+        U_epoch = torch.from_numpy(U[perm]).requires_grad_().to(device)
+        loss_batch_train = {"total": [], "data": [], "pde": []}
+        loss_batch_test = {"total": [], "data": [], "pde": []}
+        for batch in range(len(X)//batch_size_data):
+            X_batch = X_epoch[batch*batch_size_data:(batch+1)*batch_size_data, :]
+            U_batch = U_epoch[batch*batch_size_data:(batch+1)*batch_size_data, :]
+            model.train()  # on dit qu'on va entrainer (on a le dropout)
+            ## loss du pde
+            pred_pde = model(X_batch)
+            pred_pde1, pred_pde2, pred_pde3 = pde(
+                pred_pde,
+                X_batch,
+                Re=Re,
+                x_std=x_std,
+                y_std=y_std,
+                u_mean=u_mean,
+                v_mean=v_mean,
+                p_std=p_std,
+                t_std=t_std,
+                u_std=u_std,
+                v_std=v_std,
+            )
+            loss_pde = (
+                torch.mean(pred_pde1**2)
+                + torch.mean(pred_pde2**2)
+                + torch.mean(pred_pde3**2)
+            )
 
-        ## loss du pde
-        pred_pde = model(X_train_pde)
-        pred_pde1, pred_pde2, pred_pde3 = pde(
-            pred_pde,
-            X_train_pde,
-            Re=Re,
-            x_std=x_std,
-            y_std=y_std,
-            u_mean=u_mean,
-            v_mean=v_mean,
-            p_std=p_std,
-            t_std=t_std,
-            u_std=u_std,
-            v_std=v_std,
-        )
-        loss_pde = (
-            torch.mean(pred_pde1**2)
-            + torch.mean(pred_pde2**2)
-            + torch.mean(pred_pde3**2)
-        )
+            # loss des points de data
+            pred_data = model(X_batch)
+            loss_data = loss(U_batch, pred_data)  # (MSE)
 
-        # loss des points de data
-        pred_data = model(X_train_data)
-        loss_data = loss(U_train_data, pred_data)  # (MSE)
+            # loss totale
+            loss_totale = poids[0] * loss_data + poids[1] * loss_pde
 
-        # loss totale
-        loss_totale = poids[0] * loss_data + poids[1] * loss_pde
+            # Backpropagation
+            loss_totale.backward(retain_graph=True)
+            optimizer.step()
+            optimizer.zero_grad()
 
-        # Backpropagation
-        loss_totale.backward(retain_graph=True)
-        optimizer.step()
-        optimizer.zero_grad()
+            # Pour le test :
+            model.eval()
 
-        # Pour le test :
-        model.eval()
+            # loss du pde
+            test_pde = model(X_test_pde)
+            test_pde1, test_pde2, test_pde3 = pde(
+                test_pde,
+                X_test_pde,
+                Re=Re,
+                x_std=x_std,
+                y_std=y_std,
+                u_mean=u_mean,
+                v_mean=v_mean,
+                p_std=p_std,
+                t_std=t_std,
+                u_std=u_std,
+                v_std=v_std,
+            )
+            loss_test_pde = (
+                torch.mean(test_pde1**2)
+                + torch.mean(test_pde2**2)
+                + torch.mean(test_pde3**2)
+            )
+            # loss de la data
+            test_data = model(X_test_data)
+            loss_test_data = loss(U_test_data, test_data)  # (MSE)
 
-        # loss du pde
-        test_pde = model(X_test_pde)
-        test_pde1, test_pde2, test_pde3 = pde(
-            test_pde,
-            X_test_pde,
-            Re=Re,
-            x_std=x_std,
-            y_std=y_std,
-            u_mean=u_mean,
-            v_mean=v_mean,
-            p_std=p_std,
-            t_std=t_std,
-            u_std=u_std,
-            v_std=v_std,
-        )
-        loss_test_pde = (
-            torch.mean(test_pde1**2)
-            + torch.mean(test_pde2**2)
-            + torch.mean(test_pde3**2)
-        )
-        # loss de la data
-        test_data = model(X_test_data)
-        loss_test_data = loss(U_test_data, test_data)  # (MSE)
+            # loss totale
+            loss_test = poids[0] * loss_test_data + poids[1] * loss_test_pde
+            with torch.no_grad():
+                loss_batch_train["total"].append(loss_totale.item())
+                loss_batch_train["data"].append(loss_data.item())
+                loss_batch_train["pde"].append(loss_pde.item())
+                loss_batch_test["total"].append(loss_test.item())
+                loss_batch_test["data"].append(loss_test_data.item())
+                loss_batch_test["pde"].append(loss_test_pde.item())
 
-        # loss totale
-        loss_test = poids[0] * loss_test_data + poids[1] * loss_test_pde
         with torch.no_grad():
-            train_loss["total"].append(loss_totale.item())
-            train_loss["data"].append(loss_data.item())
-            train_loss["pde"].append(loss_pde.item())
-            test_loss["total"].append(loss_test.item())
-            test_loss["data"].append(loss_test_data.item())
-            test_loss["pde"].append(loss_test_pde.item())
+            train_loss["total"].append(np.mean(loss_batch_train["total"]))
+            train_loss["data"].append(np.mean(loss_batch_train["data"]))
+            train_loss["pde"].append(np.mean(loss_batch_train["pde"]))
+            test_loss["total"].append(np.mean(loss_batch_test["total"]))
+            test_loss["data"].append(np.mean(loss_batch_test["data"]))
+            test_loss["pde"].append(np.mean(loss_batch_test["pde"]))
 
-        if ((epoch + 1) % display == 0) or (epoch + 1 == nb_it_tot):
-            print(f"---------------------\nEpoch {epoch+1}/{nb_it_tot} :")
-            print(f"---------------------\nEpoch {epoch+1}/{nb_it_tot} :", file=f)
-            print(
-                f"Train : loss: {np.mean(train_loss['total'][-display:]):.3e}, data: {np.mean(train_loss['data'][-display:]):.3e}, pde: {np.mean(train_loss['pde'][-display:]):.3e}"
-            )
-            print(
-                f"Train : loss: {np.mean(train_loss['total'][-display:]):.3e}, data: {np.mean(train_loss['data'][-display:]):.3e}, pde: {np.mean(train_loss['pde'][-display:]):.3e}",
-                file=f,
-            )
-            print(
-                f"Test : loss: {np.mean(test_loss['total'][-display:]):.3e}, data: {np.mean(test_loss['data'][-display:]):.3e}, pde: {np.mean(test_loss['pde'][-display:]):.3e}"
-            )
-            print(
-                f"Test : loss: {np.mean(test_loss['total'][-display:]):.3e}, data: {np.mean(test_loss['data'][-display:]):.3e}, pde: {np.mean(test_loss['pde'][-display:]):.3e}",
-                file=f,
-            )
-            print(f"time: {time.time()-time_start:.0f}s")
-            print(f"time: {time.time()-time_start:.0f}s", file=f)
 
-        if epoch <= 4:
-            print(
-                f"Epoch: {epoch+1}/{nb_it_tot}, loss: {train_loss['total'][-1]:.3e},"
-                + f" data: {train_loss['data'][-1]:.3e}, pde: {train_loss['pde'][-1]:.3e}"
-            )
-            print(
-                f"Epoch: {epoch+1}/{nb_it_tot}, loss: {train_loss['total'][-1]:.3e},"
-                + f" data: {train_loss['data'][-1]:.3e}, pde: {train_loss['pde'][-1]:.3e}",
-                file=f,
-            )
+        print(f"---------------------\nEpoch {epoch+1}/{nb_it_tot} :")
+        print(f"---------------------\nEpoch {epoch+1}/{nb_it_tot} :", file=f)
+        print(
+            f"Train : loss: {train_loss['total'][-1]:.3e}, data: {train_loss['data'][-1]:.3e}, pde: {train_loss['pde'][-1]:.3e}"
+        )
+        print(
+            f"Train : loss: {train_loss['total'][-1]:.3e}, data: {train_loss['data'][-1]:.3e}, pde: {train_loss['pde'][-1]:.3e}",
+            file=f,
+        )
+        print(
+            f"Test  : loss: {test_loss['total'][-1]:.3e}, data: {test_loss['data'][-1]:.3e}, pde: {test_loss['pde'][-1]:.3e}"
+        )
+        print(
+            f"Test  : loss: {test_loss['total'][-1]:.3e}, data: {test_loss['data'][-1]:.3e}, pde: {test_loss['pde'][-1]:.3e}",
+            file=f,
+        )
 
-        if (epoch + 1) % resample_rate == 0:
-            points_data_train = np.random.choice(len(X), n_data, replace=False)
-            X_train_data = (
-                torch.from_numpy(X[points_data_train]).requires_grad_().to(device)
-            )
-            U_train_data = (
-                torch.from_numpy(U[points_data_train]).requires_grad_().to(device)
-            )
-            X_train_pde = rectangle.generate_random(n_pde).to(device)
+        print(f"time: {time.time()-time_start:.0f}s")
+        print(f"time: {time.time()-time_start:.0f}s", file=f)
 
         if (epoch + 1) % save_rate == 0:
             dossier_midle = Path(folder_result + f"/epoch{len(train_loss['total'])}")

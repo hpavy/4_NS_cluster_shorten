@@ -66,6 +66,11 @@ class PINNs(nn.Module):
                 nn.Linear(64, 64),
                 nn.Linear(64, 64),
                 nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
                 nn.Linear(64, 3),
             ]
         )

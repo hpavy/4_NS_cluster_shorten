@@ -18,7 +18,7 @@ time_start = time.time()
 
 ############# LES VARIABLES ################
 
-folder_result = "1_first_try"  # le nom du dossier de résultat
+folder_result = "2_try_batch"  # le nom du dossier de résultat
 
 random_seed_train = None
 # la seed de test, toujours garder la même pour pouvoir comparer
@@ -26,21 +26,19 @@ random_seed_test = 2002
 
 
 ##### Le modèle de résolution de l'équation de la chaleur
-nb_itt = 15000  # le nb d'epoch
-resample_rate = 300  # le taux de resampling
-display = 500  # le taux d'affichage
-save_rate = 5000
-poids = [1, 0]  # les poids pour la loss
+nb_itt = 360  # le nb d'epoch
+save_rate = 15
+poids = [20, 1]  # les poids pour la loss
 
-n_data = 4000  # le nb de points initiaux
-n_pde = 1  # le nb de points pour la pde
+batch_size_data = 300  # la taille d'un batch
+# batch_size_pde = 1  # le nb de points pour la pde ### Pour l'instant on prend la même taille
 
 n_data_test = 5000
 n_pde_test = 5000
 
 Re = 100
 
-lr = 5e-4
+lr = 5e-5
 
 
 ##### Le code ###############################
@@ -156,19 +154,15 @@ with open(folder_result + "/print.txt", "a") as f:
         nb_itt=nb_itt,
         train_loss=train_loss,
         test_loss=test_loss,
-        resample_rate=resample_rate,
-        display=display,
         poids=poids,
         model=model,
         loss=loss,
         optimizer=optimizer,
         X=X,
         U=U,
-        n_pde=n_pde,
         X_test_pde=X_test_pde,
         X_test_data=X_test_data,
         U_test_data=U_test_data,
-        n_data=n_data,
         rectangle=rectangle,
         device=device,
         Re=Re,
@@ -184,6 +178,7 @@ with open(folder_result + "/print.txt", "a") as f:
         p_std=p.std(),
         folder_result=folder_result,
         save_rate=save_rate,
+        batch_size_data=batch_size_data
     )
 
 ####### On save le model et les losses
