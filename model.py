@@ -57,15 +57,15 @@ class PINNs(nn.Module):
         self.couches = nn.ModuleList(
             [
                 nn.Linear(3, 64),
-                # nn.Linear(64, 64),
-                # nn.Linear(64, 64),
-                # nn.Linear(64, 64),
-                # nn.Linear(64, 64),
-                # nn.Linear(64, 64),
-                # nn.Linear(64, 64),
-                # nn.Linear(64, 64),
-                # nn.Linear(64, 64),
-                # nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
+                nn.Linear(64, 64),
                 nn.Linear(64, 3),
             ]
         )

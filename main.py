@@ -26,13 +26,13 @@ random_seed_test = 2002
 
 
 ##### Le modèle de résolution de l'équation de la chaleur
-nb_itt = 1000  # le nb d'epoch
-resample_rate = 100  # le taux de resampling
+nb_itt = 15000  # le nb d'epoch
+resample_rate = 300  # le taux de resampling
 display = 500  # le taux d'affichage
-save_rate = 300
+save_rate = 5000
 poids = [1, 0]  # les poids pour la loss
 
-n_data = 10  # le nb de points initiaux
+n_data = 4000  # le nb de points initiaux
 n_pde = 1  # le nb de points pour la pde
 
 n_data_test = 5000
@@ -40,7 +40,7 @@ n_pde_test = 5000
 
 Re = 100
 
-lr = 1e-4
+lr = 5e-4
 
 
 ##### Le code ###############################
